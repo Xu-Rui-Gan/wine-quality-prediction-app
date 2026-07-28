@@ -2,11 +2,10 @@ import joblib
 import streamlit as st
 import numpy as np
 import pandas as pd
-import altair as alt
-from datetime import datetime
+import altair as alt  ## charting library - I use this for the alcohol sensitivity chart, since it lets me draw the line and the highlighted current-value dot as two layers on the same chart. Comes bundled with streamlit so no extra install needed.
+from datetime import datetime  ## just need this for the timestamp column in the history table below
 
-## Load the model I trained and saved in the notebook (Random Forest, tuned
-## with RandomizedSearchCV). model.pkl needs to sit in this same folder.
+## Load the model I trained and saved in the notebook (Random Forest, tuned with RandomizedSearchCV). model.pkl needs to sit in this same folder.
 model = joblib.load("wine_quality_model.pkl")
 
 ## page_icon shows up as the little tab icon in the browser
