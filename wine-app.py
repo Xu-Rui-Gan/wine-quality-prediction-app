@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import altair as alt  ## charting library - I use this for the alcohol sensitivity chart, since it lets me draw the line and the highlighted current-value dot as two layers on the same chart. Comes bundled with streamlit so no extra install needed.
 from datetime import datetime  ## just need this for the timestamp column in the history table below
+import base64  ## needed to embed the banner photo directly into the CSS - see get_base64_of_bin_file below
 
 ## Load the model I trained and saved in the notebook (Random Forest, tuned with RandomizedSearchCV). model.pkl needs to sit in this same folder.
 model = joblib.load("wine_quality_model.pkl")
@@ -19,25 +20,48 @@ st.set_page_config(page_title="Wine Quality Predictor", page_icon="🍷", layout
 if "history" not in st.session_state:
     st.session_state.history = []
 
-## I originally tried setting a dark background on the whole page (.stApp),
-## but that broke badly in light mode - the default text stayed dark so it
-## became unreadable against my dark background. Putting the dark background
-## AND light text together in their own div fixes that, since the rest of
-## the page just uses whatever theme the user already has (which already
-## has matching colours).
+## Streamlit can't just take a plain file path in CSS (background: url("wine-bg.jpg")
+## doesn't reliably resolve since the markdown gets rendered in its own iframe) -
+## so I read the photo as bytes and base64-encode it, then embed that directly
+## in the CSS as a data URI instead
+def get_base64_of_bin_file(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+
+img_base64 = get_base64_of_bin_file("wine-bg.jpg")
+
+## Put the photo behind the WHOLE page (.stApp), not just one box. The dark
+## gradient layered on top of it is there so text stays readable no matter
+## how bright any part of the photo is - last time I only did this for one
+## banner div and it looked fine, but doing it for the whole page means
+## every bit of text in the main area now sits directly on top of the photo,
+## so I also have to force all of it to a light colour here (the sidebar
+## keeps its own separate light panel already, so it doesn't need this).
 st.markdown(
-    """
-    <div style="background: linear-gradient(135deg, #4a1120 0%, #1a1a1a 100%);
-                padding: 1.75rem 2rem; border-radius: 10px; margin-bottom: 1.5rem;">
-        <h1 style="color: #ffffff; margin: 0;">🍷 Wine Quality Predictor</h1>
-        <p style="color: #d8bcbc; margin: 0.4rem 0 0 0;">
-            Predicts a wine's quality score (0-10) from its lab measurements.
-            Trained on 5,320 real red and white Vinho Verde wines.
-        </p>
-    </div>
+    f"""
+    <style>
+    .stApp {{
+        background: linear-gradient(135deg, rgba(74,17,32,0.87), rgba(26,26,26,0.90)),
+                    url("data:image/jpeg;base64,{img_base64}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3,
+    [data-testid="stMain"] p, [data-testid="stMain"] span, [data-testid="stMain"] label,
+    [data-testid="stMarkdownContainer"] {{
+        color: #f5e6e6 !important;
+    }}
+    </style>
     """,
     unsafe_allow_html=True
 )
+
+st.title("🍷 Wine Quality Predictor")
+st.caption("Predicts a wine's quality score (0-10) from its lab measurements. "
+           "Trained on 5,320 real red and white Vinho Verde wines.")
 
 ## All the inputs live in the sidebar so the main area is free for the
 ## result, the chart and the history table
