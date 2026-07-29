@@ -2,26 +2,22 @@ import joblib
 import streamlit as st
 import numpy as np
 import pandas as pd
-import altair as alt  ## charting library - I use this for the alcohol sensitivity chart, since it lets me draw the line and the highlighted current-value dot as two layers on the same chart. Comes bundled with streamlit so no extra install needed.
+import altair as alt  ## charting library - I use this for the alcohol sensitivity chart
 from datetime import datetime  ## just need this for the timestamp column in the history table below
 import base64  ## needed to embed the banner photo directly into the CSS - see get_base64_of_bin_file below
 
-## Load the model I trained and saved in the notebook (Random Forest, tuned with RandomizedSearchCV). model.pkl needs to sit in this same folder.
+## Load the model I trained and saved in the notebook
 model = joblib.load("wine_quality_model.pkl")
 
 ## page_icon shows up as the little tab icon in the browser
 st.set_page_config(page_title="Wine Quality Predictor", page_icon="🍷", layout="wide")
 
-## Streamlit reruns this whole script top to bottom on every interaction, and
-## normally forgets everything each time. session_state is the way around
-## that - I use it here to remember past predictions across reruns so users
-## can compare a few wines in one sitting instead of losing the result every
-## time they move a slider.
+## Streamlit reruns this whole script top to bottom on every interaction, so normally forgets everything each time.
+## session_state is the way around that as I use it to remember past predictions so user can compare a few wines without losing results.
 if "history" not in st.session_state:
     st.session_state.history = []
 
 ## Streamlit can't just take a plain file path in CSS (background: url("wine-bg.jpg")
-## doesn't reliably resolve since the markdown gets rendered in its own iframe) -
 ## so I read the photo as bytes and base64-encode it, then embed that directly
 ## in the CSS as a data URI instead
 def get_base64_of_bin_file(path):
@@ -32,13 +28,8 @@ def get_base64_of_bin_file(path):
 
 img_base64 = get_base64_of_bin_file("wine-bg.jpg")
 
-## Put the photo behind the WHOLE page (.stApp), not just one box. The dark
-## gradient layered on top of it is there so text stays readable no matter
-## how bright any part of the photo is - last time I only did this for one
-## banner div and it looked fine, but doing it for the whole page means
-## every bit of text in the main area now sits directly on top of the photo,
-## so I also have to force all of it to a light colour here (the sidebar
-## keeps its own separate light panel already, so it doesn't need this).
+## Put the photo behind the whole page as a background photo. The dark gradient keeps texts readable.
+## All text in main area would need to be light-colored so I implemented it here
 st.markdown(
     f"""
     <style>
@@ -63,16 +54,13 @@ st.title("🍷 Wine Quality Predictor")
 st.caption("Predicts a wine's quality score (0-10) from its lab measurements. "
            "Trained on 5,320 real red and white Vinho Verde wines.")
 
-## All the inputs live in the sidebar so the main area is free for the
-## result, the chart and the history table
+## All the inputs live in the sidebar so the main area is free for the result, the chart and the history table
 st.sidebar.header("Enter Wine Lab Results")
 
 wine_type_selected = st.sidebar.selectbox("Wine Type", ['red', 'white'])
 
-## Slider min/max/default values are taken from the actual dataset stats
-## (df.describe()) in my notebook, not guessed - so the defaults are roughly
-## an "average" wine and users can't accidentally enter something outside
-## what the model has ever seen
+## Slider min/max/default values are taken from the actual dataset stats  in my notebook, so the defaults are roughly an "average" wine.
+## users can't accidentally enter something outside what the model has ever seen
 fixed_acidity_selected = st.sidebar.slider("Fixed Acidity (g/dm3)", 3.8, 15.9, 7.2)
 volatile_acidity_selected = st.sidebar.slider("Volatile Acidity (g/dm3)", 0.08, 1.58, 0.34)
 citric_acid_selected = st.sidebar.slider("Citric Acid (g/dm3)", 0.0, 1.66, 0.32)
@@ -114,11 +102,8 @@ def build_input_row():
     ## One-hot encode wine_type the same way I did in the notebook
     df_input = pd.get_dummies(df_input, columns=['wine_type'])
 
-    ## get_dummies only makes a column for whichever type was picked (e.g.
-    ## wine_type_red), but the model was trained with wine_type_white as the
-    ## only dummy column. reindex lines the columns up with what the model
-    ## expects and fills in 0 for anything missing - so picking "red" here
-    ## correctly becomes wine_type_white = 0.
+    ## get_dummies only makes a column for whichever type was picked but the model was trained with wine_type_white as the only dummy column. 
+    ## reindex lines up the columns and fills in 0 for anything missing.
     df_input = df_input.reindex(columns=model.feature_names_in_, fill_value=0)
     return df_input
 
@@ -140,10 +125,8 @@ with tab_predict:
         with col_result:
             st.metric("Predicted Quality Score", f"{y_unseen_pred:.2f} / 10")
 
-            ## Turning the raw number into a plain-English read, since a
-            ## winemaker cares more about "is this batch okay" than the
-            ## exact decimal - matches the notebook's business interpretation
-            ## (flag anything predicted below 5)
+            ## Turning the raw number into a plain-English feedback.
+            ## A winemaker cares more about whether a batch is okay than a decimal.
             if y_unseen_pred >= 7:
                 st.success("Predicted to be high quality.")
             elif y_unseen_pred >= 5:
@@ -152,12 +135,8 @@ with tab_predict:
                 st.warning("Predicted to be below average - may need review before bottling.")
 
         with col_chart:
-            ## This chart is not from the notebook - I added it here to show
-            ## how the prediction would change if only alcohol were
-            ## different, keeping every other slider at what the user
-            ## currently has. alcohol was the strongest feature in my
-            ## feature importance chart, so it felt like the most useful one
-            ## to visualise.
+            ## This chart shows how the prediction changes if only alcohol changes, keeping everything else at user's current value.
+            ## Alcohol was the strongest feature in my feature importance chart so it feels like the most useful one to visualise.
             alcohol_range = np.linspace(8.0, 14.9, 25)
             sweep_rows = [df_input.assign(alcohol=a) for a in alcohol_range]
             df_sweep = pd.concat(sweep_rows, ignore_index=True)
@@ -168,8 +147,7 @@ with tab_predict:
                 'Predicted Quality': sweep_preds
             })
 
-            ## Plain line for the sweep, plus one highlighted dot for
-            ## wherever the user's actual slider is sitting on that line
+            ## Plain line for the sweep, plus one highlighted dot for wherever the user's actual slider is sitting on that line.
             line = alt.Chart(df_chart).mark_line(color="#c0392b").encode(
                 x=alt.X('Alcohol (% vol)'),
                 y=alt.Y('Predicted Quality', scale=alt.Scale(domain=[3, 9]))
@@ -184,8 +162,7 @@ with tab_predict:
             st.caption("How predicted quality responds to alcohol content (all other inputs held at your selected values)")
             st.altair_chart((line + current_point).properties(height=280), use_container_width=True)
 
-        ## Save this prediction so it shows up in the history table below,
-        ## even after the user changes sliders and predicts again
+        ## Save this prediction users can compare different wine values without losing previous results.
         st.session_state.history.append({
             'Time': datetime.now().strftime("%H:%M:%S"),
             'Type': wine_type_selected,
@@ -201,9 +178,7 @@ with tab_predict:
         st.dataframe(df_hist, use_container_width=True, hide_index=True)
         if st.button("Clear History"):
             st.session_state.history = []
-            ## Without this the history list is cleared but the table on
-            ## screen wouldn't update until the next time a widget is
-            ## touched - st.rerun() forces the redraw straight away
+            ## Without this the history list is cleared but the table on  screen wouldn't update until the next time a widget is touched - st.rerun() forces the redraw straight away
             st.rerun()
 
 with tab_about:
