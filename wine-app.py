@@ -120,6 +120,7 @@ with tab_predict:
         ## Predict
         y_unseen_pred = model.predict(df_input)[0]
 
+        ## 1:2 split since the chart needs more horizontal room to be readable than the metric/message does
         col_result, col_chart = st.columns([1, 2])
 
         with col_result:
@@ -148,6 +149,9 @@ with tab_predict:
             })
 
             ## Plain line for the sweep, plus one highlighted dot for wherever the user's actual slider is sitting on that line.
+            ## Fixed the y-axis to 3-9 (the actual quality range in the dataset) instead of
+            ## letting it auto-scale, so the line doesn't look dramatically steep just because
+            ## the predictions only moved by a few tenths of a point
             line = alt.Chart(df_chart).mark_line(color="#c0392b").encode(
                 x=alt.X('Alcohol (% vol)'),
                 y=alt.Y('Predicted Quality', scale=alt.Scale(domain=[3, 9]))
