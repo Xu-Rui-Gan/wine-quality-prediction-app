@@ -18,8 +18,7 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 ## Streamlit can't just take a plain file path in CSS (background: url("wine-bg.jpg")
-## so I read the photo as bytes and base64-encode it, then embed that directly
-## in the CSS as a data URI instead
+## so I read the photo as bytes and base64-encode it, then embed that directly in the CSS as a data URI instead
 def get_base64_of_bin_file(path):
     with open(path, "rb") as f:
         data = f.read()
@@ -42,8 +41,15 @@ st.markdown(
     }}
     [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3,
     [data-testid="stMain"] p, [data-testid="stMain"] span, [data-testid="stMain"] label,
-    [data-testid="stMarkdownContainer"] {{
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] {{
         color: #f5e6e6 !important;
+    }}
+    /* Buttons keep their own white background regardless of the page background,
+    so the light-pink text above makes button labels unreadable - force those back
+    to a dark colour that actually contrasts with the button itself */
+    [data-testid="stMain"] button, [data-testid="stMain"] button p,
+    [data-testid="stMain"] button span, [data-testid="stMain"] button div {{
+        color: #2b0a0f !important;
     }}
     </style>
     """,
@@ -148,13 +154,10 @@ with tab_predict:
                 'Predicted Quality': sweep_preds
             })
 
-            ## Plain line for the sweep, plus one highlighted dot for wherever the user's actual slider is sitting on that line.
-            ## Fixed the y-axis to 3-9 (the actual quality range in the dataset) instead of
-            ## letting it auto-scale, so the line doesn't look dramatically steep just because
-            ## the predictions only moved by a few tenths of a point
+            ## Sweep line + dot for current value. Fixed y-axis to 3-9 so small changes don't look dramatic.
             line = alt.Chart(df_chart).mark_line(color="#c0392b").encode(
                 x=alt.X('Alcohol (% vol)'),
-                y=alt.Y('Predicted Quality', scale=alt.Scale(domain=[3, 9]))
+                y=alt.Y('Predicted Quality', scale=alt.Scale(domain=[3, 9])) ## 3-9 is the actual quality range in the dataset
             )
             current_point = alt.Chart(pd.DataFrame({
                 'Alcohol (% vol)': [alcohol_selected],
@@ -163,26 +166,32 @@ with tab_predict:
                 x='Alcohol (% vol)', y='Predicted Quality'
             )
 
+            ## Show the chart with a caption explaining what they're looking at
             st.caption("How predicted quality responds to alcohol content (all other inputs held at your selected values)")
             st.altair_chart((line + current_point).properties(height=280), use_container_width=True)
 
-        ## Save this prediction users can compare different wine values without losing previous results.
-        st.session_state.history.append({
-            'Time': datetime.now().strftime("%H:%M:%S"),
+        ## Build a dict for this prediction and append to session_state so history accumulates across reruns.
+        record = {
+            'Time': datetime.now().strftime("%H:%M:%S"), ## Timestamp so users know when each prediction was made
             'Type': wine_type_selected,
             'Alcohol': alcohol_selected,
-            'Volatile Acidity': volatile_acidity_selected,
+            'Volatile Acidity': volatile_acidity_selected, ## Second most important feature, good to track
             'Predicted Quality': round(float(y_unseen_pred), 2)
-        })
+        }
+        st.session_state.history.append(record)
 
     ## Only show the history section once there's actually something to show
     if st.session_state.history:
         st.markdown("### Your Prediction History")
+
+        ## Turn the list of dicts into a table and display it.
         df_hist = pd.DataFrame(st.session_state.history)
         st.dataframe(df_hist, use_container_width=True, hide_index=True)
+
+         ## Clear button - wipes history and refreshes page so table disappears
         if st.button("Clear History"):
             st.session_state.history = []
-            ## Without this the history list is cleared but the table on  screen wouldn't update until the next time a widget is touched - st.rerun() forces the redraw straight away
+            ## st.rerun() forces a second rerun after clearing so the table actually disappears.
             st.rerun()
 
 with tab_about:
